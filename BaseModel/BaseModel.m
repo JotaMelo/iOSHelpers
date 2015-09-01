@@ -43,7 +43,9 @@
                             formatter.dateFormat = @"yyyyMMddHH:mm:ss"; //insira aqui o formato de data usado na API
                             
                             [self setValue:[formatter dateFromString:dict[key]] forKey:fixedKey];
-                        } else
+                        } else if (class == [NSURL class])
+                            [self setValue:[NSURL URLWithString:dict[key]] forKey:fixedKey];
+                        else
                             [self setValue:dict[key] forKey:fixedKey];
                     }
                 }
