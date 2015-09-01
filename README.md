@@ -12,7 +12,7 @@ pod "AFNetworking", :git => "https://github.com/jpmfagundes/AFNetworking.git", :
 
 É uma classe que uso pra transformar um dictionary de uma API por ex. direto numa classe.
 Supondo que temos o seguinte JSON:
-```
+```json
 {
 	"id": "123",
 	"user_name": "fulana22k",
@@ -23,7 +23,7 @@ Supondo que temos o seguinte JSON:
 ```
 
 Criamos uma clase assim:
-```
+```objc
 #import "BaseModel.h"
 
 @interface User : BaseModel
@@ -42,7 +42,7 @@ No ```BaseModel.m``` você precisa definir o formato de data que a API usa, ness
 (inclusive tem um link muito bom de referencia pra formatação do ```NSDateFormatter``` [http://waracle.net/iphone-nsdateformatter-date-formatting-table/](http://waracle.net/iphone-nsdateformatter-date-formatting-table/))
 
 E então é só fazer:
-```
+```objc
 User *user = [User initWithDictionary:dict];
 ```
 
@@ -50,7 +50,7 @@ User *user = [User initWithDictionary:dict];
 
 Tem um método que uso pra facilmente transformar uma NSArray de NSDictionaries em uma NSArray de objetos de tal classe
 
-```
+```objc
 + (NSArray *)array:(NSArray *)array ofClass:(__unsafe_unretained Class)class
 {
     NSMutableArray *newArray = [NSMutableArray new];
@@ -67,7 +67,7 @@ Tem um método que uso pra facilmente transformar uma NSArray de NSDictionaries 
 }
 ```
 Pra usar:
-```
+```objc
 NSArray *items = [self array:meuArrayDeDicionarios ofClass:[User class]];
 ```
 
