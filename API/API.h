@@ -10,11 +10,13 @@
 typedef void(^RequestBlock)(id response, NSError *error, BOOL cache);
 
 typedef NS_ENUM(NSUInteger, CacheOption) {
-    CacheOptionCacheOnly, //usa somente o cache, se disponível
-    CacheOptionNetworkOnly, //ignora o cache, faz somente a requisição
-    CacheOptionBoth, //usa o cache, se disponível, e faz a requisição
+    CacheOptionCacheOnly, // only use cache, if available. If not, makes the request
+    CacheOptionNetworkOnly, // ignores cache, only makes the request
+    CacheOptionBoth, // uses cache, if available, and makes the request
 };
 
 @interface API : NSObject
+
++ (void)clearCache;
 
 @end

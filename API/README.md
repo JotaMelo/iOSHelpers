@@ -1,9 +1,9 @@
 # **API** #
 
-Classe base de API, com suporte a cache. Tentei comentar algumas coisas pra ficar claro o que faz.
+Classe base de API, com suporte a cache.
 
-Usa versão modificada do AFNetworking, use a seguinte linha no Podfile:
+Usa minha versão modificada do AFNetworking, use a seguinte linha no Podfile:
 
 ```
-pod "AFNetworking", :git => "https://github.com/jpmfagundes/AFNetworking.git", :commit => "5c9f74c24860ee03c3f6a30572651c3d3a86bffd"
+pod "AFNetworking", :git => "https://github.com/jpmfagundes/AFNetworking.git", :commit => "62f105aad65a4b54fd4cdc510d91eb0accd7306b"
 ```

@@ -10,7 +10,6 @@
 @interface BaseModel : NSObject
 
 @property (strong, nonatomic) NSDictionary *originalDict;
-
 @property (strong, nonatomic) NSString *uid;
 
 + (instancetype)initWithDictionary:(NSDictionary *)dict;
