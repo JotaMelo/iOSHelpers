@@ -32,6 +32,7 @@ Criamos as seguintes classes:
 
 ```objc
 #import "BaseModel.h"
+#import "Pizza.h"
 
 @interface User : BaseModel
 
