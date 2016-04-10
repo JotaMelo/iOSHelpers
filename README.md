@@ -65,7 +65,7 @@ O que devemos notar:
 * No JSON, o ``id`` é uma string, mas na classe foi declarado como ``NSInteger``. Nesse caso tal string será automagicamente convertida.
 * No geral, voce pode usar os tipos primitivos (BOOL, int, float etc), mas caso haja a possibilidade do valor vir ``null`` da API, como no caso do ``number_of_ingredients`` da pizza, deve ser declarado como NSNumber afinal um primitivo não poder ser ``nil``.
 
-No ```BaseModel.m``` você precisa definir o formato de data que a API usa, nesse caso seria ```yyy/MM/dd HH:mm:ss```
+No ```BaseModel.m``` você precisa definir o formato de data que a API usa, nesse caso seria ```yyyy/MM/dd HH:mm:ss```
 
 (inclusive tem um link muito bom de referencia pra formatação do ```NSDateFormatter``` [http://waracle.net/iphone-nsdateformatter-date-formatting-table/](http://waracle.net/iphone-nsdateformatter-date-formatting-table/))
 
