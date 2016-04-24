@@ -26,9 +26,10 @@ NSString *const DELETE  = @"DELETE";
 #pragma mark - Cache
 
 + (NSString *)cacheFileNameWithPath:(NSString *)path
+                             method:(NSString *)method
                              params:(NSDictionary *)params
 {
-    NSMutableString *fileName = [NSString stringWithFormat:@"%@.apicache", path].mutableCopy;
+    NSMutableString *fileName = [NSString stringWithFormat:@"%@_%@", method, path].mutableCopy;
     
     for (NSString *key in params.allKeys)
         [fileName appendFormat:@"_%@", params[key]];
@@ -143,7 +144,7 @@ suppressErrorAlert:(BOOL)supressErrorAlert
        cacheOption:(CacheOption)cacheOption
         completion:(RequestBlock)block
 {
-    NSString *cacheFileName = [self cacheFileNameWithPath:path params:immutableParams]; // generates the file name for cache
+    NSString *cacheFileName = [self cacheFileNameWithPath:path method:method params:immutableParams]; // generates the file name for cache
     BOOL hasCache = NO;
     
     if (cacheOption == CacheOptionBoth || cacheOption == CacheOptionCacheOnly) // if one of the options includes cache

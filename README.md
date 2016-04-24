@@ -23,7 +23,16 @@ Supondo que temos o seguinte JSON:
         "pizza_id": 5,
         "name": "Catuperoni",
         "number_of_ingredients": null
-    }
+    },
+    "OrderedPizzas": [{
+        "pizza_id": 5,
+        "name": "Catuperoni",
+        "number_of_ingredients": null
+    }, {
+        "pizza_id": 10,
+        "name": "Calabresa",
+        "number_of_ingredients": null
+    }]
 }
 ```
 
@@ -44,6 +53,9 @@ Criamos as seguintes classes:
 #import "BaseModel.h"
 #import "Pizza.h"
 
+@protocol Pizza
+@end
+
 @interface User : BaseModel
 
 @property (assign, nonatomic) NSInteger uid;
@@ -52,6 +64,7 @@ Criamos as seguintes classes:
 @property (assign, nonatomic) BOOL isFirstLogin;
 @property (strong, nonatomic) NSDate *registerDate;
 @property (strong, nonatomic) Pizza *favoritePizza;
+@property (strong, nonatomic) NSArray<Pizza> *orderedPizzas;
 
 @end
 ```
@@ -59,15 +72,17 @@ Criamos as seguintes classes:
 O que devemos notar:
 
 * Nomes separados por underscore (``user_name``) são convertidos para camel case (``userName``)
+* ``OrderedPizzas`` é convertido para ``orderedPizzas``
 * Quando a ultima palavra é ``id`` como em ``pizza_id`` é convertido para ``pizzaID`` e não ``pizzaId`` porque né isso seria feio pra caralho
 * ``id`` é convertido para ``uid``
 * Se a classe da propriedade for uma subclasse do BaseModel, ele é automaticamente inicializado
+* No caso de um array, voce pode declarar um protocolo (veja na classe User) com o mesmo nome da classe dos objetos desse array e usá-lo na propriedade que será automagicamente criado um array com objetos de tal classe. Note que isso é diferente dos ``Objetive-C generics``, infelizmente a informação dos generics é perdida após a compilação.
 * No JSON, o ``id`` é uma string, mas na classe foi declarado como ``NSInteger``. Nesse caso tal string será automagicamente convertida.
-* No geral, voce pode usar os tipos primitivos (BOOL, int, float etc), mas caso haja a possibilidade do valor vir ``null`` da API, como no caso do ``number_of_ingredients`` da pizza, deve ser declarado como NSNumber afinal um primitivo não poder ser ``nil``.
+* No geral, voce pode usar os tipos primitivos (BOOL, NSInteger, CGFloat etc), mas caso haja a possibilidade do valor vir ``null`` da API, como no caso do ``number_of_ingredients`` da pizza, deve ser declarado como NSNumber afinal um primitivo não poder ser ``nil``.
 
 No ```BaseModel.m``` você precisa definir o formato de data que a API usa, nesse caso seria ```yyyy/MM/dd HH:mm:ss```
 
-(inclusive tem um link muito bom de referencia pra formatação do ```NSDateFormatter``` [http://waracle.net/iphone-nsdateformatter-date-formatting-table/](http://waracle.net/iphone-nsdateformatter-date-formatting-table/))
+(inclusive tem um link muito bom de referencia pra formatação do ```NSDateFormatter```, guarde pra sua vida [http://waracle.net/iphone-nsdateformatter-date-formatting-table/](http://waracle.net/iphone-nsdateformatter-date-formatting-table/))
 
 E então é só fazer:
 ```objc
