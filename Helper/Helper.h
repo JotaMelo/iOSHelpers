@@ -22,6 +22,10 @@
 
 #if TARGET_OS_IOS
 + (UIBarButtonItem *)barButtonWithImage:(UIImage *)img target:(id)target andAction:(SEL)action;
+
++ (UIImage *)fixOrientationForImage:(UIImage *)image;
+
++ (UIImage *)blurImage:(UIImage *)image;
 #endif
 
 #pragma mark - Defaults

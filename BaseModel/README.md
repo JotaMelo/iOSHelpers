@@ -104,5 +104,6 @@ Pra usar:
 NSArray *items = [self array:myArrayOfDictionaries ofClass:[User class]];
 ```
 
-Detalhe: use a flag ```-fno-objc-arc``` nos arquivos ```NSObject+Properties.m``` e ```NSString+PropertyKVC.m``` já que eles não suportam ARC.
+~~Detalhe: use a flag ```-fno-objc-arc``` nos arquivos ```NSObject+Properties.m``` e ```NSString+PropertyKVC.m``` já que eles não suportam ARC.~~
+_(reescrevi a porra toda em Objective-C moderno e agora suporta ARC)_
 

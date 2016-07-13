@@ -3,6 +3,7 @@
  *  AQToolkit
  *
  *  Created by Jim Dovey on 10/7/2008.
+ *  Converted to modern Objective-C by Jota Melo on July 13th 2016
  *
  *  Copyright (c) 2008-2009, Jim Dovey
  *  All rights reserved.
@@ -51,26 +52,42 @@
 
 @interface NSObject (AQProperties)
 
-+ (BOOL) hasProperties;
-+ (BOOL) hasPropertyNamed: (NSString *) name;
-+ (BOOL) hasPropertyNamed: (NSString *) name ofType: (const char *) type;	// an @encode() or statictype() type string
-+ (BOOL) hasPropertyForKVCKey: (NSString *) key;
-+ (const char *) typeOfPropertyNamed: (NSString *) name;	// returns an @encode() or statictype() string. Copy to keep
-+ (SEL) getterForPropertyNamed: (NSString *) name;
-+ (SEL) setterForPropertyNamed: (NSString *) name;
-+ (NSString *) retentionMethodOfPropertyNamed: (NSString *) name;		// returns one of: copy, retain, assign
-+ (NSArray *) propertyNames;
++ (BOOL)hasProperties;
+
++ (BOOL)hasPropertyNamed:(NSString *)name;
+
++ (BOOL)hasPropertyNamed:(NSString *)name ofType:(const char *)type;	// an @encode() or statictype() type string
+
++ (BOOL)hasPropertyForKVCKey:(NSString *)key;
+
++ (const char *)typeOfPropertyNamed:(NSString *)name;	// returns an @encode() or statictype() string. Copy to keep
+
++ (SEL)getterForPropertyNamed:(NSString *)name;
+
++ (SEL)setterForPropertyNamed:(NSString *)name;
+
++ (NSString *)retentionMethodOfPropertyNamed:(NSString *)name;		// returns one of: copy, retain, assign
+
++ (NSArray *)propertyNames;
 
 // instance convenience accessors for above routines (who likes to type [myObj class] all the time ?)
-- (BOOL) hasProperties;
-- (BOOL) hasPropertyNamed: (NSString *) name;
-- (BOOL) hasPropertyNamed: (NSString *) name ofType: (const char *) type;
-- (BOOL) hasPropertyForKVCKey: (NSString *) key;
-- (const char *) typeOfPropertyNamed: (NSString *) name;
-- (SEL) getterForPropertyNamed: (NSString *) name;
-- (SEL) setterForPropertyNamed: (NSString *) name;
-- (NSString *) retentionMethodOfPropertyNamed: (NSString *) name;
-- (NSArray *) propertyNames;
+- (BOOL)hasProperties;
+
+- (BOOL)hasPropertyNamed:(NSString *)name;
+
+- (BOOL)hasPropertyNamed:(NSString *)name ofType:(const char *)type;
+
+- (BOOL)hasPropertyForKVCKey:(NSString *)key;
+
+- (const char *)typeOfPropertyNamed:(NSString *)name;
+
+- (SEL)getterForPropertyNamed: (NSString *)name;
+
+- (SEL)setterForPropertyNamed: (NSString *)name;
+
+- (NSString *)retentionMethodOfPropertyNamed:(NSString *)name;
+
+- (NSArray *)propertyNames;
 
 @end
 
@@ -79,11 +96,11 @@
 
 // returns a static buffer - copy the string to retain it, as it will
 // be overwritten on the next call to this function
-const char * property_getTypeString( objc_property_t property );
+const char * property_getTypeString(objc_property_t property);
 
 // getter/setter functions: unlike those above, these will return NULL unless a getter/setter is EXPLICITLY defined
-SEL property_getGetter( objc_property_t property );
-SEL property_getSetter( objc_property_t property );
+SEL property_getGetter(objc_property_t property);
+SEL property_getSetter(objc_property_t property);
 
 // this returns a static (data-segment) string, so the caller does not need to call free() on the result
-const char * property_getRetentionMethod( objc_property_t property );
+const char * property_getRetentionMethod(objc_property_t property);

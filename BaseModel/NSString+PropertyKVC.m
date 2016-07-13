@@ -3,6 +3,7 @@
  *  AQToolkit
  *
  *  Created by Jim Dovey on 27/8/2008.
+ *  Converted to modern Objective-C by Jota Melo on July 13th 2016
  *
  *  Copyright (c) 2008-2009, Jim Dovey
  *  All rights reserved.
@@ -40,13 +41,13 @@
 
 @implementation NSString (AQPropertyKVC)
 
-- (NSString *) propertyStyleString
+- (NSString *)propertyStyleString
 {
-    NSString * result = [[self substringToIndex: 1] lowercaseString];
-    if ( [self length] == 1 )
-    return ( result );
+    NSString *result = [self substringToIndex:1].lowercaseString;
+    if (self.length == 1)
+        return result;
     
-    return ( [result stringByAppendingString: [self substringFromIndex: 1]] );
+    return [result stringByAppendingString:[self substringFromIndex:1]];
 }
 
 @end

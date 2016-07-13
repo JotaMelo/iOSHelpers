@@ -8,9 +8,10 @@
 #import "API.h"
 #import "AFNetworking.h"
 
-#define BASE_URL @"http://example.com/api/"
 
 @implementation API
+
+NSString *const kBaseURL = @"http://example.com/api/";
 
 NSString *const GET     = @"GET";
 NSString *const POST    = @"POST";
@@ -68,7 +69,7 @@ NSString *const DELETE  = @"DELETE";
         NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:fileData];
         [archiver encodeObject:@{@"data": data} forKey:@"data"];
         [archiver finishEncoding];
-
+        
         [fileData writeToURL:cacheURL atomically:YES];
     }
 }
@@ -134,15 +135,31 @@ NSString *const DELETE  = @"DELETE";
 
 #pragma mark - HTTP
 
-+ (void)      make:(NSString *)method
-   requestWithPath:(NSString *)path
-            params:(NSDictionary *)immutableParams
-      extraHeaders:(NSDictionary *)extraHeaders
-suppressErrorAlert:(BOOL)supressErrorAlert
-       uploadBlock:(void(^)(NSProgress *progress))uploadBlock
-     downloadBlock:(void(^)(NSProgress *progress))downloadBlock
-       cacheOption:(CacheOption)cacheOption
-        completion:(RequestBlock)block
+/**
+ Creates and runs an `NSURLSessionDataTask`
+ 
+ @param method             The HTTP method to be used
+ @param path               The path of the request
+ @param baseURL            An option baseURL to be used with the path. If nil, uses the class' default baseURL
+ @param params             A dictionary of parameters. If any of the values is of type NSData (or an array of NSData), the request will be sent as a multipart/form-data
+ @param extraHeaders       These headers will be appended to the request
+ @param suppressErrorAlert Should silence the default error alert of the method
+ @param uploadBlock        A block that reports the progress of the request's upload
+ @param downloadBlock      A block that reports the progress of the request's download
+ @param cacheOption        The cache option to be used for this request, check the definition in the header for more info
+ @param completion         A block called when the request in completed. It takes an id (the response object), NSError (the error of the request if any) and a BOOL (indicating if the request came from the cache)
+ */
+
++ (NSURLSessionDataTask *)make:(NSString *)method
+               requestWithPath:(NSString *)path
+                       baseURL:(NSURL *)baseURL
+                        params:(NSDictionary *)immutableParams
+                  extraHeaders:(NSDictionary *)extraHeaders
+            suppressErrorAlert:(BOOL)supressErrorAlert
+                   uploadBlock:(void(^)(NSProgress *progress))uploadBlock
+                 downloadBlock:(void(^)(NSProgress *progress))downloadBlock
+                   cacheOption:(CacheOption)cacheOption
+                    completion:(RequestBlock)block
 {
     NSString *cacheFileName = [self cacheFileNameWithPath:path method:method params:immutableParams]; // generates the file name for cache
     BOOL hasCache = NO;
@@ -196,7 +213,10 @@ suppressErrorAlert:(BOOL)supressErrorAlert
         
         NSMutableDictionary *params = immutableParams.mutableCopy;
         
-        AFHTTPSessionManager *manager = [[AFHTTPSessionManager alloc] initWithBaseURL:[NSURL URLWithString:BASE_URL]];
+        if (!baseURL)
+            baseURL = [NSURL URLWithString:kBaseURL];
+        
+        AFHTTPSessionManager *manager = [[AFHTTPSessionManager alloc] initWithBaseURL:baseURL];
         manager.requestSerializer = [AFJSONRequestSerializer serializer];
         
         // add here authentication parameters/headers, if necessary
@@ -213,33 +233,63 @@ suppressErrorAlert:(BOOL)supressErrorAlert
         for (id key in params) {
             if ([params[key] isKindOfClass:[NSData class]])
                 [dataParameters addObject:key];
+            else if ([params[key] isKindOfClass:[NSArray class]]) {
+                NSArray *array = params[key];
+                if (array.count > 0 && [array.firstObject isKindOfClass:[NSData class]])
+                    [dataParameters addObject:key];
+            }
         }
         
+        NSURLSessionDataTask *task;
         if (dataParameters.count > 0) { // requests with NSData parameters should be sent using multipart/form-data
-            [[manager POST:path parameters:nil constructingBodyWithBlock:^(id<AFMultipartFormData>  _Nonnull formData) {
+            task = [manager dataTaskWithHTTPMethod:method URLString:path parameters:nil constructingBodyWithBlock:^(id<AFMultipartFormData>  _Nonnull formData) {
                 for (id key in dataParameters) {
-                    NSData *data = params[key];
-                    [formData appendPartWithFileData:data name:key fileName:key mimeType:[self mimeTypeForData:data]];
+                    id param = params[key];
+                    
+                    if ([param isKindOfClass:[NSData class]])
+                        [formData appendPartWithFileData:param name:key fileName:key mimeType:[self mimeTypeForData:param]];
+                    else if ([param isKindOfClass:[NSArray class]]) {
+                        NSArray *arrayOfDatas = param;
+                        for (int i = 0; i < arrayOfDatas.count; i++) {
+                            NSData *data = arrayOfDatas[i];
+                            NSString *paramName = [NSString stringWithFormat:@"%@[%i]", key, i];
+                            
+                            [formData appendPartWithFileData:data name:paramName fileName:key mimeType:[self mimeTypeForData:data]];
+                        }
+                    }
                     
                     [params removeObjectForKey:key];
                 }
                 
-                for (NSString *key in params)
-                    [formData appendPartWithFormData:[params[key] dataUsingEncoding:NSUTF8StringEncoding] name:key];
-            } progress:uploadBlock success:successBlock failure:failureBlock] resume];
-        } else
-            [[manager dataTaskWithHTTPMethod:method URLString:path parameters:params uploadProgress:uploadBlock downloadProgress:downloadBlock success:successBlock failure:failureBlock] resume];
+                for (NSString *key in params) {
+                    id param = params[key];
+                    
+                    if ([param isKindOfClass:[NSNumber class]])
+                        param = [param stringValue];
+                    
+                    [formData appendPartWithFormData:[param dataUsingEncoding:NSUTF8StringEncoding] name:key];
+                }
+            } uploadProgress:uploadBlock downloadProgress:downloadBlock success:successBlock failure:failureBlock];
+        } else {
+            task = [manager dataTaskWithHTTPMethod:method URLString:path parameters:params constructingBodyWithBlock:nil uploadProgress:uploadBlock downloadProgress:downloadBlock success:successBlock failure:failureBlock];
+        }
+        
+        [task resume];
+        
+        return task;
     }
+    
+    return nil;
 }
 
 // simplified method in case you don't need to use all parameters from the method above
-+ (void)make:(NSString *)method
-requestWithPath:(NSString *)path
-      params:(NSDictionary *)immutableParams
- cacheOption:(CacheOption)cacheOption
-  completion:(RequestBlock)block
++ (NSURLSessionDataTask *)make:(NSString *)method
+               requestWithPath:(NSString *)path
+                        params:(NSDictionary *)immutableParams
+                   cacheOption:(CacheOption)cacheOption
+                    completion:(RequestBlock)block
 {
-    [self make:method requestWithPath:path params:immutableParams extraHeaders:nil suppressErrorAlert:NO uploadBlock:nil downloadBlock:nil cacheOption:cacheOption completion:block];
+    return [self make:method requestWithPath:path baseURL:nil params:immutableParams extraHeaders:nil suppressErrorAlert:NO uploadBlock:nil downloadBlock:nil cacheOption:cacheOption completion:block];
 }
 
 @end
