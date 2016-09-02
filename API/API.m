@@ -26,6 +26,14 @@ NSString * const APIMethodDELETE  = @"DELETE";
 
 @implementation API
 
++ (NSURLSessionDataTask *)exampleRequestWithBlock:(APIResponseBlock)block
+{
+    return [[self new] make:APIMethodGET requestWithPath:@"test" params:@{@"param": @1} cacheOption:APICacheOptionBoth completion:^(id  _Nullable response, NSError * _Nullable error, BOOL cache) {
+        
+        block(response, error, cache);
+    }];
+}
+
 + (AFHTTPSessionManager *)sharedSessionManager
 {
     static AFHTTPSessionManager *sharedManager = nil;
