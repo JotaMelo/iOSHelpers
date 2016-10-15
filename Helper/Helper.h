@@ -16,7 +16,7 @@
 
 + (instancetype)sharedHelper;
 
-+ (NSArray *)array:(NSArray *)array ofClass:(__unsafe_unretained Class)class;
++ (NSArray *)transformDictionaryArray:(NSArray<NSDictionary *> *)array intoArrayOfModels:(Class)class;
 
 + (BOOL)validateEmailWithString:(NSString *)checkString;
 

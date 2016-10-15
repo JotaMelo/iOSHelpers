@@ -7,12 +7,15 @@
 
 #import <Foundation/Foundation.h>
 
-@interface BaseModel : NSObject
+@interface BaseModel : NSObject <NSCopying>
 
-@property (strong, nonatomic) NSDictionary *originalDict;
+@property (strong, nonatomic) NSString *modelDateFormat;
+@property (strong, nonatomic) NSDictionary *originalDictionary;
+@property (nonatomic, readonly) NSDictionary *dictionaryRepresentation;
+
 @property (strong, nonatomic) NSNumber *uid;
 
-+ (instancetype)initWithDictionary:(NSDictionary *)dict;
-- (instancetype)initWithDictionary:(NSDictionary *)dict;
++ (instancetype)initWithDictionary:(NSDictionary *)dictionary;
+- (instancetype)initWithDictionary:(NSDictionary *)dictionary;
 
 @end

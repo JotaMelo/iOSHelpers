@@ -1,6 +1,7 @@
 # **Base Model** #
 
-É uma classe que uso pra transformar um dictionary de uma API por ex. direto numa classe.
+Inicialize um model a partir de um dicionário como _**mágica**_
+
 Supondo que temos o seguinte JSON:
 ```json
 {
@@ -84,7 +85,7 @@ User *user = [User initWithDictionary:dict];
 Na classe Helper há um metodo para facilmente transformar uma NSArray de NSDictionaries em uma NSArray de BaseModels.
 
 ```objc
-+ (NSArray *)array:(NSArray *)array ofClass:(__unsafe_unretained Class)class
++ (NSArray *)transformDictionaryArray:(NSArray<NSDictionary *> *)array intoArrayOfModels:(Class)class
 {
     NSMutableArray *newArray = [NSMutableArray new];
     
@@ -103,7 +104,24 @@ Pra usar:
 ```objc
 NSArray *items = [self array:myArrayOfDictionaries ofClass:[User class]];
 ```
+<hr>
+O ```BaseModel``` conforma (conforma? sei la falar sobre isso em portugues) ao protocol NSCopying então voce pode criar uma cópia de qualquer model com um simples ```modelObject.copy```. 
+<hr>
+Você pode usar a propriedade ```modelDateFormat``` para alterar o formato de data apenas naquela instancia. Exemplo:
+
+```objc
+User *user = [User new];
+user.modelDateFormat = @"yyyy-MM-DD";
+user.originalDictionary = userDataDictionary;
+```
+
+O setter da propriedade ```originalDictionary``` é o responsavel por toda a _**mágica**_.
+<hr>
+Apesar de estar declarado diretamente na classe do model ```User```, o ```BaseModel``` declara a propriedade ```uid``` e a usa para implementar o ```-[BaseModel isEqual:]```. Métodos como o ```-[NSArray indexOfObject:]``` usam o ```isEqual``` para verificar se os objetos são iguais.
+<hr>
+O ```BaseModel``` também declara a propriedade ```dictionaryRepresentation```, ela cria um dicionário com os valores atuais das propriedades e com as mesmas keys que foram usadas no dicionário usado para inicializar o model. Mas atenção: se alguma propriedade não estava presente no dicionário original, também não estará presente no dicionario retornado pelo ```dictionaryRepresentation```. Por que? Bem, raramente o nome da propriedade será o mesmo da key usada na API (afinal a maioria usa _snake case_ e eu espero que voce não esteja usando essa atrocidade no seu código Objective-C), então eu não sei qual key deveria usar, portanto fica de fora. A ideia é ter uma representação atualizada do dicionário inicialmente usado.
+
 
 ~~Detalhe: use a flag ```-fno-objc-arc``` nos arquivos ```NSObject+Properties.m``` e ```NSString+PropertyKVC.m``` já que eles não suportam ARC.~~
-_(reescrevi a porra toda em Objective-C moderno e agora suporta ARC)_
+_(reescrevi a porra toda em modern Objective-C e agora suporta ARC)_
 

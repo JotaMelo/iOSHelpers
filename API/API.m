@@ -28,10 +28,23 @@ NSString * const APIMethodDELETE  = @"DELETE";
 
 + (NSURLSessionDataTask *)exampleRequestWithBlock:(APIResponseBlock)block
 {
+    API *request = [API new];
+    request.shouldSaveCache = NO;
+    return [request make:APIMethodPOST requestWithPath:@"login" params:@{@"user": @"jota", @"senha": @"mansaothugstronda"} cacheOption:APICacheOptionBoth completion:block];
+    
     return [[self new] make:APIMethodGET requestWithPath:@"test" params:@{@"param": @1} cacheOption:APICacheOptionBoth completion:^(id  _Nullable response, NSError * _Nullable error, BOOL cache) {
         
         block(response, error, cache);
     }];
+}
+
+- (instancetype)init
+{
+    self = [super init];
+    if (self) {
+        self.shouldSaveCache = YES;
+    }
+    return self;
 }
 
 + (AFHTTPSessionManager *)sharedSessionManager
@@ -39,6 +52,7 @@ NSString * const APIMethodDELETE  = @"DELETE";
     static AFHTTPSessionManager *sharedManager = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
+        
         sharedManager = [AFHTTPSessionManager manager];
     });
     
@@ -53,12 +67,13 @@ NSString * const APIMethodDELETE  = @"DELETE";
 {
     NSMutableString *fileName = [NSString stringWithFormat:@"%@_%@", method, path].mutableCopy;
     
-    for (NSString *key in params.allKeys)
+    for (NSString *key in params.allKeys) {
         [fileName appendFormat:@"_%@", params[key]];
+    }
     
     fileName = [fileName stringByReplacingOccurrencesOfString:@"/" withString:@"-"].mutableCopy;
     
-    return fileName;
+    return [NSString stringWithFormat:@"%@.apicache", fileName];
 }
 
 + (BOOL)returnCacheIfExistsForFileName:(NSString *)cacheFileName
@@ -71,8 +86,9 @@ NSString * const APIMethodDELETE  = @"DELETE";
         NSKeyedUnarchiver *unarchiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:data];
         NSMutableDictionary *response = [[NSMutableDictionary alloc] initWithDictionary:[unarchiver decodeObjectForKey:@"data"]];
         
-        if (block)
+        if (block) {
             block(response[@"data"], nil, YES);
+        }
         
         return YES;
     }
@@ -166,7 +182,12 @@ NSString * const APIMethodDELETE  = @"DELETE";
     return nil;
 }
 
-+ (void)showErrorMessage:(NSString *)errorMessage
++ (void)handleError:(NSError * _Nonnull)error withResponseObject:(id _Nullable)responseObject
+{
+    [API showErrorMessage:error.localizedDescription];
+}
+
++ (void)showErrorMessage:(NSString * _Nonnull)errorMessage
 {
 #if TARGET_OS_IOS
     if ([[UIApplication sharedApplication].keyWindow isMemberOfClass:[UIWindow class]]) {  // don't show alert on top of another alert
@@ -178,21 +199,83 @@ NSString * const APIMethodDELETE  = @"DELETE";
 #endif
 }
 
-+ (NSArray *)identifyDataParametersInParameters:(NSDictionary *)parameters
++ (BOOL)checkForDataObjectsInParameters:(NSArray *)parameters
 {
-    NSMutableArray *dataParameters = @[].mutableCopy;
-    
-    for (id key in parameters) {
-        if ([parameters[key] isKindOfClass:[NSData class]])
-            [dataParameters addObject:key];
-        else if ([parameters[key] isKindOfClass:[NSArray class]]) {
-            NSArray *array = parameters[key];
-            if (array.count > 0 && [array.firstObject isKindOfClass:[NSData class]])
-                [dataParameters addObject:key];
+    for (id object in parameters) {
+        if ([object isKindOfClass:[NSData class]]) {
+            return YES;
+        } else if ([object isKindOfClass:[NSDictionary class]]) {
+            BOOL hasData = [self checkForDataObjectsInParameters:[object allValues]];
+            
+            if (hasData) {
+                return YES;
+            }
+        } else if ([object isKindOfClass:[NSArray class]]) {
+            BOOL hasData = [self checkForDataObjectsInParameters:object];
+            
+            if (hasData) {
+                return YES;
+            }
         }
     }
     
-    return dataParameters;
+    return NO;
+}
+
++ (NSDictionary *)flattenDictionary:(NSDictionary *)dictionary
+{
+    return [self flattenDictionary:dictionary keyString:nil];
+}
+
++ (NSDictionary *)flattenDictionary:(NSDictionary *)dictionary keyString:(NSString *)keyString
+{
+    NSMutableDictionary *flattenedDictionary = @{}.mutableCopy;
+    
+    for (NSString *key in dictionary) {
+        id value = dictionary[key];
+        
+        NSString *newKey;
+        if (keyString) {
+            newKey = [NSString stringWithFormat:@"%@[%@]", keyString, key];
+        } else {
+            newKey = key;
+        }
+        
+        if ([value isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *flattenedSubDictionary = [self flattenDictionary:value keyString:newKey];
+            [flattenedDictionary addEntriesFromDictionary:flattenedSubDictionary];
+        } else if ([value isKindOfClass:[NSArray class]]) {
+            NSDictionary *flattenedSubDictionary = [self flattenArray:value keyString:newKey];
+            [flattenedDictionary addEntriesFromDictionary:flattenedSubDictionary];
+        } else {
+            flattenedDictionary[newKey] = value;
+        }
+    }
+    
+    return flattenedDictionary;
+}
+
++ (NSDictionary *)flattenArray:(NSArray *)array keyString:(NSString *)keyString
+{
+    NSMutableDictionary *flattenedDictionary = @{}.mutableCopy;
+    
+    for (int i = 0; i < array.count; i++) {
+        id value = array[i];
+        
+        NSString *newKey = [NSString stringWithFormat:@"%@[%d]", keyString, i];
+        
+        if ([value isKindOfClass:[NSArray class]]) {
+            NSDictionary *flattenedSubDictionary = [self flattenArray:value keyString:newKey];
+            [flattenedDictionary addEntriesFromDictionary:flattenedSubDictionary];
+        } else if ([value isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *flattenedSubDictionary = [self flattenDictionary:value keyString:newKey];
+            [flattenedDictionary addEntriesFromDictionary:flattenedSubDictionary];
+        } else {
+            flattenedDictionary[newKey] = value;
+        }
+    }
+    
+    return flattenedDictionary;
 }
 
 #pragma mark - HTTP
@@ -205,7 +288,9 @@ NSString * const APIMethodDELETE  = @"DELETE";
         NSLog(@"\n\n%@ %@", self.method, task.response);
         NSLog(@"%@", responseObject);
         
-        [API writeData:responseObject toCacheFile:self.cacheFileName]; // request ok, saves it in cache
+        if (self.shouldSaveCache) {
+            [API writeData:responseObject toCacheFile:self.cacheFileName]; // request ok, saves it in cache
+        }
         
         if (self.completionBlock) {
             self.completionBlock(responseObject, nil, NO);
@@ -216,8 +301,6 @@ NSString * const APIMethodDELETE  = @"DELETE";
 - (APIRequestFailureBlock)requestFailureBlock
 {
     return ^(NSURLSessionDataTask *task, NSError *error) {
-        [API showErrorMessage:error.localizedDescription];
-        
         // can't get the responseObject directly in AFNetworking 3.0, so do that manually
         NSData *responseData = error.userInfo[AFNetworkingOperationFailingURLResponseDataErrorKey];
         id responseObject;
@@ -226,8 +309,13 @@ NSString * const APIMethodDELETE  = @"DELETE";
             NSError *error;
             responseObject = [NSJSONSerialization JSONObjectWithData:responseData options:0 error:&error];
             
-            if (error)
+            if (error) {
                 responseObject = [[NSString alloc] initWithData:responseData encoding:NSUTF8StringEncoding];
+            }
+        }
+        
+        if (!self.suppressErrorAlert) {
+            [API handleError:error withResponseObject:responseObject];
         }
         
         NSLog(@"\n\n%@ %@", self.method, task.response);
@@ -239,35 +327,23 @@ NSString * const APIMethodDELETE  = @"DELETE";
     };
 }
 
-- (APIMultipartConstructionBlock)multipartFormDataConstructionBlockWithDataParameters:(NSArray *)dataParameters
-                                                                    mutableParameters:(NSMutableDictionary *)parameters
+- (APIMultipartConstructionBlock)multipartFormDataConstructionBlockWithParameters:(NSDictionary *)parameters
 {
     return ^(id<AFMultipartFormData>  _Nonnull formData) {
-        for (id key in dataParameters) {
+        for (id key in parameters) {
             id parameter = parameters[key];
             
-            if ([parameter isKindOfClass:[NSData class]])
-                [formData appendPartWithFileData:[parameter base64EncodedDataWithOptions:0] name:key fileName:key mimeType:[API mimeTypeForData:parameter]];
-            else if ([parameter isKindOfClass:[NSArray class]]) {
-                NSArray *arrayOfDatas = parameter;
-                for (int i = 0; i < arrayOfDatas.count; i++) {
-                    NSData *data = arrayOfDatas[i];
-                    NSString *paramName = [NSString stringWithFormat:@"%@[%i]", key, i];
-                    
-                    [formData appendPartWithFileData:data name:paramName fileName:key mimeType:[API mimeTypeForData:data]];
+            if ([parameter isKindOfClass:[NSData class]]) {
+                NSString *fixedKey = [[key stringByReplacingOccurrencesOfString:@"[" withString:@""] stringByReplacingOccurrencesOfString:@"]" withString:@""];
+                
+                [formData appendPartWithFileData:parameter name:key fileName:fixedKey mimeType:[API mimeTypeForData:parameter]];
+            } else {
+                if ([parameter isKindOfClass:[NSNumber class]]) {
+                    parameter = [parameter stringValue];
                 }
+                
+                [formData appendPartWithFormData:[parameter dataUsingEncoding:NSUTF8StringEncoding] name:key];
             }
-            
-            [parameters removeObjectForKey:key];
-        }
-        
-        for (NSString *key in parameters) {
-            id parameter = parameters[key];
-            
-            if ([parameter isKindOfClass:[NSNumber class]])
-                parameter = [parameter stringValue];
-            
-            [formData appendPartWithFormData:[parameter dataUsingEncoding:NSUTF8StringEncoding] name:key];
         }
     };
 }
@@ -279,7 +355,7 @@ NSString * const APIMethodDELETE  = @"DELETE";
                                 baseURL:(NSURL * _Nullable)baseURL
                                  params:(NSDictionary * _Nullable)immutableParams
                            extraHeaders:(NSDictionary * _Nullable)extraHeaders
-                     suppressErrorAlert:(BOOL)supressErrorAlert
+                     suppressErrorAlert:(BOOL)suppressErrorAlert
                             uploadBlock:(APIProgressBlock _Nullable)uploadBlock
                           downloadBlock:(APIProgressBlock _Nullable)downloadBlock
                             cacheOption:(APICacheOption)cacheOption
@@ -290,7 +366,7 @@ NSString * const APIMethodDELETE  = @"DELETE";
     self.baseURL = baseURL;
     self.parameters = immutableParams;
     self.extraHeaders = extraHeaders;
-    self.suppressErrorAlert = supressErrorAlert;
+    self.suppressErrorAlert = suppressErrorAlert;
     self.uploadBlock = uploadBlock;
     self.downloadBlock = downloadBlock;
     self.cacheOption = cacheOption;
@@ -325,7 +401,7 @@ NSString * const APIMethodDELETE  = @"DELETE";
             self.baseURL = [NSURL URLWithString:APIBaseURL];
         }
         
-        AFHTTPSessionManager *manager = [API sharedSessionManager]; // [[AFHTTPSessionManager alloc] initWithBaseURL:self.baseURL];
+        AFHTTPSessionManager *manager = [API sharedSessionManager];
         manager.baseURL = self.baseURL;
         manager.requestSerializer = [AFJSONRequestSerializer serializer];
         manager.responseSerializer.acceptableContentTypes = [manager.responseSerializer.acceptableContentTypes setByAddingObject:@"text/html"];
@@ -333,15 +409,17 @@ NSString * const APIMethodDELETE  = @"DELETE";
         // authentication headers here
         
         if (self.extraHeaders) {
-            for (NSString *key in self.extraHeaders.allKeys)
+            for (NSString *key in self.extraHeaders.allKeys) {
                 [manager.requestSerializer setValue:self.extraHeaders[key] forHTTPHeaderField:key];
+            }
         }
         
-        NSArray *dataParameters = [API identifyDataParametersInParameters:parameters]; // identifies parameters that are instances of NSData
+        BOOL hasDataParameters = [API checkForDataObjectsInParameters:parameters.allValues];
         
         APIMultipartConstructionBlock multipartFormDataConstructionBlock;
-        if (dataParameters.count > 0) { // requests with NSData parameters should be sent using multipart/form-data
-            multipartFormDataConstructionBlock = [self multipartFormDataConstructionBlockWithDataParameters:dataParameters mutableParameters:parameters];
+        if (hasDataParameters) { // requests with NSData parameters should be sent using multipart/form-data
+            NSDictionary *flattenedParameters = [API flattenDictionary:parameters];
+            multipartFormDataConstructionBlock = [self multipartFormDataConstructionBlockWithParameters:flattenedParameters];
             parameters = nil;
         }
         

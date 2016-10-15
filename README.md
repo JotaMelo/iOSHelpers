@@ -1,18 +1,181 @@
+(essas classes foram feitas para uso interno na iOasys. Você eventual internauta™ que caiu aqui fique a vontade para usar como quiser, mas a documentação abaixo foi feita com esses usuários especificos em mente)
+
 # **API** #
 
 Classe base de API, com suporte a cache.
-Automaticamente faz um multipart/form-data se algum dos parametros for NSData ou um NSArray de NSData
+Automaticamente faz um multipart/form-data se algum dos parametros for NSData ou um NSArray de NSData.
 
 Usa minha versão modificada do AFNetworking, use a seguinte linha no Podfile:
 
-```
+```ruby
 pod "AFNetworking", :git => "https://github.com/jpmfagundes/AFNetworking.git", :commit => "64741e8d341de802093371b6d8f805fe62d60cc5"
 ```
+
+O primeiro passo é alterar as seguintes duas constants no topo do arquivo .m
+
+```objc
+NSString * const APIBaseURL       = @"http://api.baseurl.com/v1/";
+NSString * const APIErrorDomain   = @"com.company.project.api";
+```
+
+Há dois métodos para fazer um request de maneira fácil
+
+```objc
+- (NSURLSessionDataTask * _Nonnull)make:(NSString * _Nonnull)method
+                        requestWithPath:(NSString * _Nonnull)path
+                                 params:(NSDictionary * _Nullable)immutableParams
+                            cacheOption:(APICacheOption)cacheOption
+                             completion:(APIResponseBlock _Nullable)block;
+```
+
+O método simplificado, recebe 5 parametros:
+* ```method``` método HTTP da request (GET, POST, etc, use as constants)
+* ```path``` path relativo a base URL setada anteriormente
+* ```params``` dicionario com os parametros a serem enviados (enviados como JSON para o servidor)
+* ```cacheOption``` a opção de cache (mais detalhes abaixo)
+* ```block``` o block a ser chamado com a resposta da request
+
+
+
+E o segundo método:
+```objc
+- (NSURLSessionDataTask * _Nonnull)make:(NSString * _Nonnull)method
+                        requestWithPath:(NSString * _Nonnull)path
+                                baseURL:(NSURL * _Nullable)baseURL
+                                 params:(NSDictionary * _Nullable)immutableParams
+                           extraHeaders:(NSDictionary * _Nullable)extraHeaders
+                     suppressErrorAlert:(BOOL)suppressErrorAlert
+                            uploadBlock:(APIProgressBlock _Nullable)uploadBlock
+                          downloadBlock:(APIProgressBlock _Nullable)downloadBlock
+                            cacheOption:(APICacheOption)cacheOption
+                             completion:(APIResponseBlock _Nullable)block;
+```
+
+Esse é o método mais completo, adiciona alguns parametros como:
+
+* ```baseURL``` permitindo que voce altere a baseURL de um request específico
+* ```extraHeaders``` um dicionário com headers adicionais a serem enviados no request
+* ```suppressErrorAlert``` um ```BOOL``` que se verdadeiro impede que a classe emita o alerta de erro padrão
+* ```uploadBlock``` e ```downloadBlock``` para acompanhar o progresso (de um envio de imagem, por exemplo).
+
+
+
+## **Cache** ##
+
+São 3 opções de cache ao fazer o request:
+
+* ```APICacheOptionCacheOnly``` - se o request estiver em cache, retorna no block **apenas** a resposta do cache, não fazendo um request. Porem se o request não estiver em cache, o request é feito.
+* ```APICacheOptionNetworkOnly``` - ignora completamente o cache e faz o request, retornando apenas a resposta dele.
+* ```APICacheOptionBoth``` - se o request estiver em cache, retorno no block a resposta do cache e, posteriormente, a resposta do request. Se o request não estiver em cache, retorna apenas a resposta do request.
+
+O funcionamento do cache é simples: ele cria um nome de arquivo baseado em:
+* Método HTTP
+* Path
+* Parametros e seus valores
+
+Sempre com a extensão de arquivo ```.apicache``` e salva nesse arquivo os dados do ```responseObject```. 
+
+Por padrão **todos** os requests são salvos no cache, mas em alguns casos é ideal desativar isso. Por exemplo, um request que você chama várias vezes com parametros diferentes sempre (pode acabar criando um alto volume de dados no aparelho do usuário), ou requests que incluam a senha do usuário (como os valores tambem são usados para construir o nome do arquivo, é um problema de segurança). Então podemos desativar _por request_ o cache:
+
+```objc
++ (NSURLSessionDataTask *)exampleRequestWithBlock:(APIResponseBlock)block
+{
+    API *request = [API new];
+    request.shouldSaveCache = NO;
+    return [request make:APIMethodPOST requestWithPath:@"login" params:@{@"user": @"jota", @"senha": @"mansaothugstronda"} cacheOption:APICacheOptionBoth completion:block];
+}
+```
+
+## **Response block** ##
+
+```objc
+typedef void(^APIResponseBlock)(id _Nullable response, NSError * _Nullable error, BOOL cache);
+```
+
+O block de reposta dos requests, com 3 parametros:
+* ```response``` - pode ser um ```NSDictionary```, ```NSArray``` ou ```NSString``` caso ocorra algum erro no parsing do JSON (talvez ocorreu um erro no servidor e foi retornada uma página HTML).
+* ```error``` - ```nil``` se o request for OK. Caso contrário retorna um ```NSError``` direto do AFNetworking ou um erro criado por você caso tenha implementado error handling especifico (mais detalhes abaixo).
+
+
+## **Error handling** ##
+
+Por padrão a classe mostra um ```UIAlertView``` (sim, deprecated, eu sei, mas tem algumas facilidades **apenas** nesse uso especifico que ainda não estou pronto para abandonar. Mas não se preocupe, 0 warnings. Não usem APIs deprecated, crianças) com o ```localizedDescription``` do ```NSError```. Muitas vezes a API retorna uma resposta com uma descrição melhor do erro, então você pode modificar o error handling modificando o método:
+
+```objc
++ (void)handleError:(NSError * _Nonnull)error withResponseObject:(id _Nullable)responseObject
+{
+    [API showErrorMessage:error.localizedDescription];
+}
+```
+
+Nele voce tem acesso ao ```NSError``` e ao ```responseObject```. Decida qual vai ser a mensagem apresentada e chame o ```+[API showErrorMessage:]```.
+
+## **E onde eu coloco meus metodos hein?** ##
+
+Minha recomendação (e eu fiz essa classe com isso em mente) é que a classe ```API``` em si fique limpa e voce agrupe seus requests em diferentes subclasses da ```API```. Por exemplo, voce pode ter uma classe ```APIAuthentication``` com todos os requests de login, cadastro, esqueci senha etc, e outra ```APIUser``` com todos os requests relacionados ao usuario como atualizar perfil. 
+
+Isso permite também uma maior costumização. Tive uma situação que em todos os requests relacionados ao usuário eu precisava enviar o email dele tambem, junto dos outros parametros do request. Vamos primeiro analisar o header da classe:
+
+```objc
+@property (strong, nonatomic, nonnull) NSString *method;
+@property (strong, nonatomic, nonnull) NSString *path;
+@property (strong, nonatomic, nullable) NSURL *baseURL;
+@property (strong, nonatomic, nullable) NSDictionary *parameters;
+@property (strong, nonatomic, nullable) NSDictionary *extraHeaders;
+
+@property (assign, nonatomic) APICacheOption cacheOption;
+@property (assign, nonatomic) BOOL suppressErrorAlert;
+
+@property (copy, nonatomic, nullable) APIProgressBlock uploadBlock;
+@property (copy, nonatomic, nullable) APIProgressBlock downloadBlock;
+@property (copy, nonatomic, nullable) APIResponseBlock completionBlock;
+
+@property (assign, nonatomic) BOOL shouldSaveCache;
+@property (strong, nonatomic, nonnull) NSString *cacheFileName;
+```
+
+Tudo necessário para o request está nessas propriedades. E como são propriedades você pode implementar seus setters e/ou getters na sua subclasse para ter um comportamento diferente apenas naquela classe. Então como resolver o problema de sempre enviar o email do usuário sem realmente escrever isso em TODOS os requests? Exemplo real:
+
+```objc
+- (void)setParameters:(NSDictionary *)parameters
+{
+    NSString *userEmail = self.userEmail;
+    
+    if (userEmail) {
+        if (!parameters) {
+            [super setParameters:@{@"email": userEmail}];
+        } else {
+            NSMutableDictionary *updatedParameters = parameters.mutableCopy;
+            updatedParameters[@"email"] = userEmail;
+            
+            [super setParameters:updatedParameters];
+        }
+    } else {
+        [super setParameters:parameters];
+    }
+}
+```
+
+Implementando o setter da propriedade ```parameters```. Então sempre que for setado um valor nos parameters, eu tento enfiar um email junto lá, apenas nessa classe. As possibilidades são infinitas (ou quase isso).
+
+
+## **Sim eu sei que dúvidas** ##
+
+Talvez você se pergunte em um momento: *Uai... e como eu acesso os headers no response block, hein?*
+
+Bem, não acessa. No nosso caso a maioria das vezes que precisamos de dados dos headers é relacionado a algo de autenticação como o **token**. Então ai eu recomendo que se faça isso no block de resposta de sucesso padrão, que voce encontra em ```-[API requestSuccessBlock]```. Lá você tem acesso a todos os dados da resposta e não apenas o corpo. E lá que voce deve inserir a logica de verificar a existencia dos headers de autenticação que voce precisa (por exemplo) para salvar no ```NSUserDefaults```. E deve salvar lá mesmo.
+
+E continuando nesse assunto: no método ```-[API makeRequest]``` que voce deve inserir os headers de autenticação que todos os requests devem ter (tem até um comentário lá mostrando onde você deve inserir, de nada), em vez de buscar e inserir isso manualmente **em todo request**.
+
+Ok, ai mesmo depois disso tudo você ainda pergunta: *Porra mas eu preciso dos headers em altos lugares cara e ai??*
+
+Claro, cada app é um app, vários casos diferentes, vários casos especificos. Essa classe foi feita pensando em ser mais generica possível para a **maioria** das APIs que lidamos por aqui. Algumas fogem disso, então sinta-se livre (mesmo!) para modificar ela do jeito que você quiser. Não só essa classe mas todas nesse repositório foram feitas com essa ideia: são uma base de fácil entendimento (eu tentei, juro) para que você adapte a sua necessidade.
 
 
 # **Base Model** #
 
-É uma classe que uso pra transformar um dictionary de uma API por ex. direto numa classe.
+Inicialize um model a partir de um dicionário como _**mágica**_
+
 Supondo que temos o seguinte JSON:
 ```json
 {
@@ -96,7 +259,7 @@ User *user = [User initWithDictionary:dict];
 Na classe Helper há um metodo para facilmente transformar uma NSArray de NSDictionaries em uma NSArray de BaseModels.
 
 ```objc
-+ (NSArray *)array:(NSArray *)array ofClass:(__unsafe_unretained Class)class
++ (NSArray *)transformDictionaryArray:(NSArray<NSDictionary *> *)array intoArrayOfModels:(Class)class
 {
     NSMutableArray *newArray = [NSMutableArray new];
     
@@ -115,15 +278,24 @@ Pra usar:
 ```objc
 NSArray *items = [self array:myArrayOfDictionaries ofClass:[User class]];
 ```
+<hr>
+O ```BaseModel``` conforma (conforma? sei la falar sobre isso em portugues) ao protocol NSCopying então voce pode criar uma cópia de qualquer model com um simples ```modelObject.copy```. 
+<hr>
+Você pode usar a propriedade ```modelDateFormat``` para alterar o formato de data apenas naquela instancia. Exemplo:
+
+```objc
+User *user = [User new];
+user.modelDateFormat = @"yyyy-MM-DD";
+user.originalDictionary = userDataDictionary;
+```
+
+O setter da propriedade ```originalDictionary``` é o responsavel por toda a _**mágica**_.
+<hr>
+Apesar de estar declarado diretamente na classe do model ```User```, o ```BaseModel``` declara a propriedade ```uid``` e a usa para implementar o ```-[BaseModel isEqual:]```. Métodos como o ```-[NSArray indexOfObject:]``` usam o ```isEqual``` para verificar se os objetos são iguais.
+<hr>
+O ```BaseModel``` também declara a propriedade ```dictionaryRepresentation```, ela cria um dicionário com os valores atuais das propriedades e com as mesmas keys que foram usadas no dicionário usado para inicializar o model. Mas atenção: se alguma propriedade não estava presente no dicionário original, também não estará presente no dicionario retornado pelo ```dictionaryRepresentation```. Por que? Bem, raramente o nome da propriedade será o mesmo da key usada na API (afinal a maioria usa _snake case_ e eu espero que voce não esteja usando essa atrocidade no seu código Objective-C), então eu não sei qual key deveria usar, portanto fica de fora. A ideia é ter uma representação atualizada do dicionário inicialmente usado.
+
 
 ~~Detalhe: use a flag ```-fno-objc-arc``` nos arquivos ```NSObject+Properties.m``` e ```NSString+PropertyKVC.m``` já que eles não suportam ARC.~~
-_(reescrevi a porra toda em Objective-C moderno e agora suporta ARC)_
+_(reescrevi a porra toda em modern Objective-C e agora suporta ARC)_
 
-
-# **JMGroupImageVIew** #
-
-View para várias imagens, com suporte a 1, 2, 3 ou 4 imagens.
-![iOS Simulator Screen Shot Aug 21, 2015, 2.48.48 AM.png](http://i.imgur.com/3Buddmt.png)
-
-Depende do AFNetworking.
-Para definir as imagens voce pode passar um array de UIImages, NSURLs ou NSStrings (que sejam URLs). Você pode configurar o espaçamento entre as imagens e o corner radius.

@@ -45,6 +45,7 @@ NS_ASSUME_NONNULL_END
 @property (copy, nonatomic, nullable) APIProgressBlock downloadBlock;
 @property (copy, nonatomic, nullable) APIResponseBlock completionBlock;
 
+@property (assign, nonatomic) BOOL shouldSaveCache;
 @property (strong, nonatomic, nonnull) NSString *cacheFileName;
 
 #pragma mark - Cache
@@ -54,7 +55,13 @@ NS_ASSUME_NONNULL_END
 
 #pragma mark - Helpers
 
-+ (NSArray * _Nonnull)identifyDataParametersInParameters:(NSDictionary * _Nonnull)parameters;
++ (BOOL)checkForDataObjectsInParameters:(NSArray * _Nonnull)parameters;
+
++ (NSDictionary * _Nonnull)flattenDictionary:(NSDictionary * _Nonnull)dictionary;
+
++ (void)handleError:(NSError * _Nonnull)error withResponseObject:(id _Nullable)responseObject;
+
++ (void)showErrorMessage:(NSString * _Nonnull)errorMessage;
 
 
 #pragma mark - HTTP
@@ -65,8 +72,7 @@ NS_ASSUME_NONNULL_END
 
 - (APIRequestFailureBlock _Nonnull)requestFailureBlock;
 
-- (APIMultipartConstructionBlock _Nonnull)multipartFormDataConstructionBlockWithDataParameters:(NSArray * _Nonnull)dataParameters
-                                                                             mutableParameters:(NSMutableDictionary * _Nonnull)parameters;
+- (APIMultipartConstructionBlock _Nonnull)multipartFormDataConstructionBlockWithParameters:(NSDictionary * _Nonnull)parameters;
 
 #pragma mark Makers
 
@@ -78,20 +84,20 @@ NS_ASSUME_NONNULL_END
  @param method             The HTTP method to be used
  @param path               The path of the request
  @param baseURL            An option baseURL to be used with the path. If nil, uses the class' default baseURL
- @param params             A dictionary of parameters. If any of the values is of type NSData (or an array of NSData), the request will be sent as a multipart/form-data
+ @param immutableParams    A dictionary of parameters. If any of the values is of type NSData (or an array of NSData), the request will be sent as a multipart/form-data
  @param extraHeaders       These headers will be appended to the request
  @param suppressErrorAlert Should silence the default error alert of the method
  @param uploadBlock        A block that reports the progress of the request's upload
  @param downloadBlock      A block that reports the progress of the request's download
  @param cacheOption        The cache option to be used for this request, check the definition in the header for more info
- @param completion         A block called when the request in completed. It takes an id (the response object), NSError (the error of the request if any) and a BOOL (indicating if the request came from the cache)
+ @param block              A block called when the request in completed. It takes an id (the response object), NSError (the error of the request if any) and a BOOL (indicating if the request came from the cache)
  */
 - (NSURLSessionDataTask * _Nonnull)make:(NSString * _Nonnull)method
                         requestWithPath:(NSString * _Nonnull)path
                                 baseURL:(NSURL * _Nullable)baseURL
                                  params:(NSDictionary * _Nullable)immutableParams
                            extraHeaders:(NSDictionary * _Nullable)extraHeaders
-                     suppressErrorAlert:(BOOL)supressErrorAlert
+                     suppressErrorAlert:(BOOL)suppressErrorAlert
                             uploadBlock:(APIProgressBlock _Nullable)uploadBlock
                           downloadBlock:(APIProgressBlock _Nullable)downloadBlock
                             cacheOption:(APICacheOption)cacheOption
