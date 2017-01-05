@@ -11,27 +11,28 @@ Usa minha versão modificada do AFNetworking, use a seguinte linha no Podfile:
 pod "AFNetworking", :git => "https://github.com/jpmfagundes/AFNetworking.git", :commit => "64741e8d341de802093371b6d8f805fe62d60cc5"
 ```
 
-O primeiro passo é alterar as seguintes duas constants no topo do arquivo .m
+O primeiro passo é alterar as seguintes três constants no topo do arquivo .m
 
 ```objc
-NSString * const APIBaseURL       = @"http://api.baseurl.com/v1/";
+NSString * const APIBaseURL       = @"http://example.com";
+NSString * const APIPath          = @"/api/v1/";
 NSString * const APIErrorDomain   = @"com.company.project.api";
 ```
 
-Há dois métodos para fazer um request de maneira fácil
+Há dois métodos para criar um request de maneira fácil
 
 ```objc
-- (NSURLSessionDataTask * _Nonnull)make:(NSString * _Nonnull)method
-                        requestWithPath:(NSString * _Nonnull)path
-                                 params:(NSDictionary * _Nullable)immutableParams
-                            cacheOption:(APICacheOption)cacheOption
-                             completion:(APIResponseBlock _Nullable)block;
++ (instancetype _Nonnull)make:(NSString * _Nonnull)method
+              requestWithPath:(NSString * _Nonnull)path
+                   parameters:(NSDictionary * _Nullable)parameters
+                  cacheOption:(APICacheOption)cacheOption
+                   completion:(APIResponseBlock _Nullable)block;
 ```
 
 O método simplificado, recebe 5 parametros:
 * ```method``` método HTTP da request (GET, POST, etc, use as constants)
 * ```path``` path relativo a base URL setada anteriormente
-* ```params``` dicionario com os parametros a serem enviados (enviados como JSON para o servidor)
+* ```parameters``` dicionario com os parametros a serem enviados (enviados como JSON para o servidor)
 * ```cacheOption``` a opção de cache (mais detalhes abaixo)
 * ```block``` o block a ser chamado com a resposta da request
 
@@ -39,16 +40,16 @@ O método simplificado, recebe 5 parametros:
 
 E o segundo método:
 ```objc
-- (NSURLSessionDataTask * _Nonnull)make:(NSString * _Nonnull)method
-                        requestWithPath:(NSString * _Nonnull)path
-                                baseURL:(NSURL * _Nullable)baseURL
-                                 params:(NSDictionary * _Nullable)immutableParams
-                           extraHeaders:(NSDictionary * _Nullable)extraHeaders
-                     suppressErrorAlert:(BOOL)suppressErrorAlert
-                            uploadBlock:(APIProgressBlock _Nullable)uploadBlock
-                          downloadBlock:(APIProgressBlock _Nullable)downloadBlock
-                            cacheOption:(APICacheOption)cacheOption
-                             completion:(APIResponseBlock _Nullable)block;
++ (instancetype _Nonnull)make:(NSString * _Nonnull)method
+              requestWithPath:(NSString * _Nonnull)path
+                      baseURL:(NSURL * _Nullable)baseURL
+                   parameters:(NSDictionary * _Nullable)parameters
+                 extraHeaders:(NSDictionary * _Nullable)extraHeaders
+           suppressErrorAlert:(BOOL)suppressErrorAlert
+                  uploadBlock:(APIProgressBlock _Nullable)uploadBlock
+                downloadBlock:(APIProgressBlock _Nullable)downloadBlock
+                  cacheOption:(APICacheOption)cacheOption
+                   completion:(APIResponseBlock _Nullable)block;
 ```
 
 Esse é o método mais completo, adiciona alguns parametros como:
@@ -58,6 +59,12 @@ Esse é o método mais completo, adiciona alguns parametros como:
 * ```suppressErrorAlert``` um ```BOOL``` que se verdadeiro impede que a classe emita o alerta de erro padrão
 * ```uploadBlock``` e ```downloadBlock``` para acompanhar o progresso (de um envio de imagem, por exemplo).
 
+Os dois retornam uma instancia da classe ```API```. Para fazer o request é só chamar o seguinte método na instancia criada:
+```objc
+- (NSURLSessionDataTask * _Nonnull)makeRequest;
+```
+
+Ele retorna uma ```NSURLSessionDataTask``` que pode ser cancelada com o método ```-[NSURLSessionDataTask cancel]```.
 
 
 ## **Cache** ##
@@ -75,14 +82,17 @@ O funcionamento do cache é simples: ele cria um nome de arquivo baseado em:
 
 Sempre com a extensão de arquivo ```.apicache``` e salva nesse arquivo os dados do ```responseObject```. 
 
-Por padrão **todos** os requests são salvos no cache, mas em alguns casos é ideal desativar isso. Por exemplo, um request que você chama várias vezes com parametros diferentes sempre (pode acabar criando um alto volume de dados no aparelho do usuário), ou requests que incluam a senha do usuário (como os valores tambem são usados para construir o nome do arquivo, é um problema de segurança). Então podemos desativar _por request_ o cache:
+Todo o cache é gerenciado pela classe ```APICacheManager```. Alem do cache em disco, também há um cache em memória. Por padrão tem um tamanho máximo de 1MB, mas esse tamanho pode ser configurado na propriedade ```inMemoryCacheMaxSize``` do ```APICacheManager```. Na inicialização dessa classe, todos os arquivos de cache sao carregados na memória ATÉ que o limite seja atingido. Caso o limite do cache seja atingido ao longo do uso do app, é feita uma otimização: são mantidos em memória os items mais acessados (essa contagem é feita internamente). 
+
+Por padrão **todos** os requests são salvos no cache, mas em alguns casos é ideal desativar isso. Por exemplo, um request que você chama várias vezes com parametros diferentes sempre (pode acabar criando um alto volume de dados no aparelho do usuário), ou requests que incluam dados sensíveis. Então podemos desativar _por request_ o cache:
 
 ```objc
-+ (NSURLSessionDataTask *)exampleRequestWithBlock:(APIResponseBlock)block
++ (NSURLSessionDataTask *)exampleRequestwithBlock:(APIResponseBlock)block
 {
-    API *request = [API new];
+    API *request = [API make:APIMethodPOST requestWithPath:@"login" parameters:@{@"user": @"jota", @"senha": @"mansaothugstronda"} cacheOption:APICacheOptionBoth completion:block];
     request.shouldSaveCache = NO;
-    return [request make:APIMethodPOST requestWithPath:@"login" params:@{@"user": @"jota", @"senha": @"mansaothugstronda"} cacheOption:APICacheOptionBoth completion:block];
+    
+    return [request makeRequest];
 }
 ```
 
@@ -163,13 +173,15 @@ Implementando o setter da propriedade ```parameters```. Então sempre que for se
 
 Talvez você se pergunte em um momento: *Uai... e como eu acesso os headers no response block, hein?*
 
-Bem, não acessa. No nosso caso a maioria das vezes que precisamos de dados dos headers é relacionado a algo de autenticação como o **token**. Então ai eu recomendo que se faça isso no block de resposta de sucesso padrão, que voce encontra em ```-[API requestSuccessBlock]```. Lá você tem acesso a todos os dados da resposta e não apenas o corpo. E lá que voce deve inserir a logica de verificar a existencia dos headers de autenticação que voce precisa (por exemplo) para salvar no ```NSUserDefaults```. E deve salvar lá mesmo.
+Bem, não acessa. No nosso caso a maioria das vezes que precisamos de dados dos headers é relacionado a algo de autenticação como o **token**. 
+Nesse caso a classe já vem com uma solução pronta pensada e ja ajustada para nossas APIs internas. Há um método (uma read-only property na verdade) ```-[API authenticationHeaders]``` que retorna um array de headers usados na authenticação. Em toda response é verificado se foram retornados esses headers e, se sim, são salvos no ```NSUserDefaults```. E ai no request esses headers, se presentes no ```NSUserDefaults```, são incluidos automaticamente. Então no seu método de login, por exemplo, você não precisaria se preocupar em persistir os dados de autenticação: tudo seria feito por voce.
 
-E continuando nesse assunto: no método ```-[API makeRequest]``` que voce deve inserir os headers de autenticação que todos os requests devem ter (tem até um comentário lá mostrando onde você deve inserir, de nada), em vez de buscar e inserir isso manualmente **em todo request**.
+Há também o ```-[API logout]``` que exclui os headers salvos.
 
 Ok, ai mesmo depois disso tudo você ainda pergunta: *Porra mas eu preciso dos headers em altos lugares cara e ai??*
 
 Claro, cada app é um app, vários casos diferentes, vários casos especificos. Essa classe foi feita pensando em ser mais generica possível para a **maioria** das APIs que lidamos por aqui. Algumas fogem disso, então sinta-se livre (mesmo!) para modificar ela do jeito que você quiser. Não só essa classe mas todas nesse repositório foram feitas com essa ideia: são uma base de fácil entendimento (eu tentei, juro) para que você adapte a sua necessidade.
+
 
 
 # **Base Model** #

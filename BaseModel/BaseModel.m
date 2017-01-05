@@ -69,7 +69,8 @@ static NSString * const BaseModelDefaultDateFormat = @"yyyy/MM/dd HH:mm:ss";
                     Class class = classes.firstObject;
                     
                     // if the class is one of my beloved childs, let's just do the magic here
-                    if (class_getSuperclass(class) == [BaseModel class]) {
+                    Class superclass = class_getSuperclass(class);
+                    if ([self isClass:superclass equalToClass:[BaseModel class]]) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
                         id modelItem = [class performSelector:NSSelectorFromString(@"initWithDictionary:") withObject:dictionary[key]];
@@ -199,6 +200,20 @@ static NSString * const BaseModelDefaultDateFormat = @"yyyy/MM/dd HH:mm:ss";
     return fixedKey;
 }
 
+// Previously class comparison was done using ==, but one day a unit test failed.
+// Turns out the runtime funciotns (class_getSuperclass, NSStringFromClass etc) were
+// returning different pointers than [ClassName class], so best way was to get their
+// names and used that to compare.
+//
+// ref http://stackoverflow.com/a/16426371/1757960
+- (BOOL)isClass:(Class)class1 equalToClass:(Class)class2
+{
+    const char *class1Name = class_getName(class1);
+    const char *class2Name = class_getName(class2);
+    
+    return strcmp(class1Name, class2Name) == 0;
+}
+
 // an array can conform to a protocol with the same name as BaseModel subclass
 // like this:
 //
@@ -246,7 +261,7 @@ static NSString * const BaseModelDefaultDateFormat = @"yyyy/MM/dd HH:mm:ss";
                 NSString *strippedSingleProtocolName = [protocol stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
                 
                 Class class = NSClassFromString(strippedSingleProtocolName);
-                if (class && class_getSuperclass(class) == [BaseModel class]) {
+                if (class && [self isClass:class_getSuperclass(class) equalToClass:[BaseModel class]]) {
                     protocolClass = class;
                     break;
                 }

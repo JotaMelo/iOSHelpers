@@ -1,15 +1,20 @@
 //
 //  API.m
+//  v1.0
 //
 //  Created by Jota Melo on 8/21/15.
 //  Copyright (c) 2015 Jota. All rights reserved.
 //
 
 #import "API.h"
+#import "APICacheManager.h"
 #import "AFNetworking.h"
 
-NSString * const APIBaseURL       = @"http://baseurl";
-NSString * const APIErrorDomain   = @"com.company.project.api";
+NSString * const APIBaseURL       = @"http://example.com";
+NSString * const APIPath          = @"/api/v1/";
+NSString * const APIErrorDomain   = @"com.app.error";
+
+NSString * const APIAuthenticationHeadersDefaultsKey = @"authenticationHeaders";
 
 NSString * const APIMethodGET     = @"GET";
 NSString * const APIMethodPOST    = @"POST";
@@ -17,25 +22,26 @@ NSString * const APIMethodPUT     = @"PUT";
 NSString * const APIMethodPATCH   = @"PATCH";
 NSString * const APIMethodDELETE  = @"DELETE";
 
+
 @interface API ()
 
 @property (strong, nonatomic) AFHTTPSessionManager *sessionManager;
+@property (readonly, nonatomic) NSArray<NSString *> *authenticationHeaders;
 
 @end
 
 
 @implementation API
 
-+ (NSURLSessionDataTask *)exampleRequestWithBlock:(APIResponseBlock)block
++ (AFHTTPSessionManager *)sharedSessionManager
 {
-    API *request = [API new];
-    request.shouldSaveCache = NO;
-    return [request make:APIMethodPOST requestWithPath:@"login" params:@{@"user": @"jota", @"senha": @"mansaothugstronda"} cacheOption:APICacheOptionBoth completion:block];
+    static AFHTTPSessionManager *sharedManager = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedManager = [AFHTTPSessionManager manager];
+    });
     
-    return [[self new] make:APIMethodGET requestWithPath:@"test" params:@{@"param": @1} cacheOption:APICacheOptionBoth completion:^(id  _Nullable response, NSError * _Nullable error, BOOL cache) {
-        
-        block(response, error, cache);
-    }];
+    return sharedManager;
 }
 
 - (instancetype)init
@@ -47,98 +53,35 @@ NSString * const APIMethodDELETE  = @"DELETE";
     return self;
 }
 
-+ (AFHTTPSessionManager *)sharedSessionManager
++ (NSURLSessionDataTask *)exampleRequestwithBlock:(APIResponseBlock)block
 {
-    static AFHTTPSessionManager *sharedManager = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        
-        sharedManager = [AFHTTPSessionManager manager];
-    });
+    API *request = [API make:APIMethodPOST requestWithPath:@"login" parameters:@{@"user": @"jota", @"senha": @"mansaothugstronda"} cacheOption:APICacheOptionBoth completion:block];
+    request.shouldSaveCache = NO;
     
-    return sharedManager;
-}
-
-#pragma mark - Cache
-
-+ (NSString *)cacheFileNameWithPath:(NSString *)path
-                             method:(NSString *)method
-                             params:(NSDictionary *)params
-{
-    NSMutableString *fileName = [NSString stringWithFormat:@"%@_%@", method, path].mutableCopy;
-    
-    for (NSString *key in params.allKeys) {
-        [fileName appendFormat:@"_%@", params[key]];
-    }
-    
-    fileName = [fileName stringByReplacingOccurrencesOfString:@"/" withString:@"-"].mutableCopy;
-    
-    return [NSString stringWithFormat:@"%@.apicache", fileName];
-}
-
-+ (BOOL)returnCacheIfExistsForFileName:(NSString *)cacheFileName
-                            completion:(APIResponseBlock)block
-{
-    NSURL *cacheURL = [self URLForFileName:cacheFileName];
-    
-    if ([NSFileManager.defaultManager fileExistsAtPath:cacheURL.path]) {
-        NSData *data = [[NSMutableData alloc] initWithContentsOfURL:cacheURL];
-        NSKeyedUnarchiver *unarchiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:data];
-        NSMutableDictionary *response = [[NSMutableDictionary alloc] initWithDictionary:[unarchiver decodeObjectForKey:@"data"]];
-        
-        if (block) {
-            block(response[@"data"], nil, YES);
-        }
-        
-        return YES;
-    }
-    
-    return NO;
-}
-
-+ (void)writeData:(id)data
-      toCacheFile:(NSString *)cacheFileName
-{
-    if (data && cacheFileName) {
-        NSURL *cacheURL = [self URLForFileName:cacheFileName];
-        NSMutableData *fileData = [[NSMutableData alloc] init];
-        
-        NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:fileData];
-        [archiver encodeObject:@{@"data": data} forKey:@"data"];
-        [archiver finishEncoding];
-        
-        [fileData writeToURL:cacheURL atomically:YES];
-    }
-}
-
-+ (NSURL *)URLForFileName:(NSString *)fileName
-{
-    NSURL *documentsDirectory = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].lastObject;
-    NSURL *fileURL = [documentsDirectory URLByAppendingPathComponent:fileName];
-    return fileURL;
-}
-
-+ (void)clearCache
-{
-    NSString *documentsDirectory = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents"];
-    NSFileManager *localFileManager = [[NSFileManager alloc] init];
-    NSDirectoryEnumerator *directoryEnumerator = [localFileManager enumeratorAtPath:documentsDirectory];
-    
-    NSString *file;
-    while ((file = directoryEnumerator.nextObject)) {
-        if ([file hasSuffix:@".apicache"]) {
-            NSString *fullPath = [NSString stringWithFormat:@"%@/%@", documentsDirectory, file];
-            [localFileManager removeItemAtPath:fullPath error:nil];
-        }
-    }
+    return [request makeRequest];
 }
 
 #pragma mark - Accessors
 
+- (NSURL *)baseURL
+{
+    if (_baseURL) {
+        return _baseURL;
+    } else {
+        NSURL *baseURL = [NSURL URLWithString:APIBaseURL];
+        return [baseURL URLByAppendingPathComponent:APIPath];
+    }
+}
+
+- (NSArray<NSString *> *)authenticationHeaders
+{
+    return @[@"access-token", @"client", @"uid"];
+}
+
 - (NSString *)cacheFileName
 {
     if (!_cacheFileName) {
-        _cacheFileName = [API cacheFileNameWithPath:self.path method:self.method params:self.parameters];
+        _cacheFileName = [APICacheManager.sharedManager cacheFileNameWithPath:self.path method:self.method parameters:self.parameters];
     }
     
     return _cacheFileName;
@@ -147,36 +90,45 @@ NSString * const APIMethodDELETE  = @"DELETE";
 
 #pragma mark - Helpers
 
-+ (NSString *)mimeTypeForData:(NSData *)data
++ (void)logout
+{
+    for (NSString *header in [API new].authenticationHeaders) {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:header];
+    }
+    
+    [NSUserDefaults.standardUserDefaults synchronize];
+}
+
++ (NSArray<NSString *> *)mimeTypeForData:(NSData *)data
 {
     uint8_t c;
     [data getBytes:&c length:1];
     
     switch (c) {
         case 0xFF:
-            return @"image/jpeg";
+            return @[@"image/jpeg", @".jpg"];
             break;
         case 0x89:
-            return @"image/png";
+            return @[@"image/png", @".png"];
             break;
         case 0x47:
-            return @"image/gif";
+            return @[@"image/gif", @".gif"];
             break;
         case 0x49:
         case 0x4D:
-            return @"image/tiff";
+            return @[@"image/tiff", @".tiff"];
             break;
         case 0x25:
-            return @"application/pdf";
+            return @[@"application/pdf", @".pdf"];
             break;
         case 0xD0:
-            return @"application/vnd";
+            return @[@"application/vnd", @""];
             break;
         case 0x46:
-            return @"text/plain";
+            return @[@"text/plain", @".txt"];
             break;
         default:
-            return @"application/octet-stream";
+            return @[@"application/octet-stream", @""];
     }
     
     return nil;
@@ -184,7 +136,15 @@ NSString * const APIMethodDELETE  = @"DELETE";
 
 + (void)handleError:(NSError * _Nonnull)error withResponseObject:(id _Nullable)responseObject
 {
-    [API showErrorMessage:error.localizedDescription];
+    NSString *errorMessage;
+    
+    if ([responseObject isKindOfClass:[NSDictionary class]] && [responseObject[@"errors"] count] > 0) {
+        errorMessage = responseObject[@"errors"][0];
+    } else {
+        errorMessage = error.localizedDescription;
+    }
+    
+    [API showErrorMessage:errorMessage];
 }
 
 + (void)showErrorMessage:(NSString * _Nonnull)errorMessage
@@ -193,7 +153,7 @@ NSString * const APIMethodDELETE  = @"DELETE";
     if ([[UIApplication sharedApplication].keyWindow isMemberOfClass:[UIWindow class]]) {  // don't show alert on top of another alert
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        [[[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Error", @"") message:errorMessage delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil] show];
+        [[[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Erro", @"") message:errorMessage delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil] show];
 #pragma clang pop
     }
 #endif
@@ -289,11 +249,30 @@ NSString * const APIMethodDELETE  = @"DELETE";
         NSLog(@"%@", responseObject);
         
         if (self.shouldSaveCache) {
-            [API writeData:responseObject toCacheFile:self.cacheFileName]; // request ok, saves it in cache
+            [APICacheManager.sharedManager writeData:responseObject toCacheFile:self.cacheFileName]; // request ok, saves it in cache
+        }
+        
+        NSHTTPURLResponse *response = (NSHTTPURLResponse *)task.response;
+        for (NSString *headerName in self.authenticationHeaders) {
+            if (response.allHeaderFields[headerName]) {
+                if (![NSUserDefaults.standardUserDefaults objectForKey:APIAuthenticationHeadersDefaultsKey]) {
+                    [NSUserDefaults.standardUserDefaults setObject:@{} forKey:APIAuthenticationHeadersDefaultsKey];
+                }
+                
+                NSMutableDictionary *storedAuthenticationHeaders = [[NSUserDefaults.standardUserDefaults objectForKey:APIAuthenticationHeadersDefaultsKey] mutableCopy];
+                storedAuthenticationHeaders[headerName] = response.allHeaderFields[headerName];
+                [NSUserDefaults.standardUserDefaults setObject:storedAuthenticationHeaders forKey:APIAuthenticationHeadersDefaultsKey];
+            }
         }
         
         if (self.completionBlock) {
-            self.completionBlock(responseObject, nil, NO);
+            if (NSThread.isMainThread) {
+                self.completionBlock(responseObject, nil, NO);
+            } else {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self.completionBlock(responseObject, nil, NO);
+                });
+            }
         }
     };
 }
@@ -301,6 +280,11 @@ NSString * const APIMethodDELETE  = @"DELETE";
 - (APIRequestFailureBlock)requestFailureBlock
 {
     return ^(NSURLSessionDataTask *task, NSError *error) {
+        // ignore error triggered when task is cancelled
+        if ([error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled) {
+            return;
+        }
+        
         // can't get the responseObject directly in AFNetworking 3.0, so do that manually
         NSData *responseData = error.userInfo[AFNetworkingOperationFailingURLResponseDataErrorKey];
         id responseObject;
@@ -322,7 +306,13 @@ NSString * const APIMethodDELETE  = @"DELETE";
         NSLog(@"%@", responseObject);
         
         if (self.completionBlock) {
-            self.completionBlock(responseObject, error, NO);
+            if (NSThread.isMainThread) {
+                self.completionBlock(responseObject, error, NO);
+            } else {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self.completionBlock(responseObject, error, NO);
+                });
+            }
         }
     };
 }
@@ -336,8 +326,9 @@ NSString * const APIMethodDELETE  = @"DELETE";
             if ([parameter isKindOfClass:[NSData class]]) {
                 NSString *fixedKey = [[key stringByReplacingOccurrencesOfString:@"[" withString:@""] stringByReplacingOccurrencesOfString:@"]" withString:@""];
                 
-                [formData appendPartWithFileData:parameter name:key fileName:fixedKey mimeType:[API mimeTypeForData:parameter]];
-            } else {
+                NSArray<NSString *> *mimeType = [API mimeTypeForData:parameter];
+                [formData appendPartWithFileData:parameter name:key fileName:[fixedKey stringByAppendingString:mimeType.lastObject] mimeType:mimeType.firstObject];
+            } else if (parameter != [NSNull null]) {
                 if ([parameter isKindOfClass:[NSNumber class]]) {
                     parameter = [parameter stringValue];
                 }
@@ -350,39 +341,40 @@ NSString * const APIMethodDELETE  = @"DELETE";
 
 #pragma mark Makers
 
-- (NSURLSessionDataTask * _Nonnull)make:(NSString * _Nonnull)method
-                        requestWithPath:(NSString * _Nonnull)path
-                                baseURL:(NSURL * _Nullable)baseURL
-                                 params:(NSDictionary * _Nullable)immutableParams
-                           extraHeaders:(NSDictionary * _Nullable)extraHeaders
-                     suppressErrorAlert:(BOOL)suppressErrorAlert
-                            uploadBlock:(APIProgressBlock _Nullable)uploadBlock
-                          downloadBlock:(APIProgressBlock _Nullable)downloadBlock
-                            cacheOption:(APICacheOption)cacheOption
-                             completion:(APIResponseBlock _Nullable)block
++ (instancetype _Nonnull)make:(NSString * _Nonnull)method
+              requestWithPath:(NSString * _Nonnull)path
+                      baseURL:(NSURL * _Nullable)baseURL
+                   parameters:(NSDictionary * _Nullable)parameters
+                 extraHeaders:(NSDictionary * _Nullable)extraHeaders
+           suppressErrorAlert:(BOOL)suppressErrorAlert
+                  uploadBlock:(APIProgressBlock _Nullable)uploadBlock
+                downloadBlock:(APIProgressBlock _Nullable)downloadBlock
+                  cacheOption:(APICacheOption)cacheOption
+                   completion:(APIResponseBlock _Nullable)block;
 {
-    self.method = method;
-    self.path = path;
-    self.baseURL = baseURL;
-    self.parameters = immutableParams;
-    self.extraHeaders = extraHeaders;
-    self.suppressErrorAlert = suppressErrorAlert;
-    self.uploadBlock = uploadBlock;
-    self.downloadBlock = downloadBlock;
-    self.cacheOption = cacheOption;
-    self.completionBlock = block;
+    API *request = [API new];
+    request.method = method;
+    request.path = path;
+    request.baseURL = baseURL;
+    request.parameters = parameters;
+    request.extraHeaders = extraHeaders;
+    request.suppressErrorAlert = suppressErrorAlert;
+    request.uploadBlock = uploadBlock;
+    request.downloadBlock = downloadBlock;
+    request.cacheOption = cacheOption;
+    request.completionBlock = block;
     
-    return [self makeRequest];
+    return request;
 }
 
 // simplified method in case you don't need to use all parameters from the method above
-- (NSURLSessionDataTask * _Nonnull)make:(NSString * _Nonnull)method
-                        requestWithPath:(NSString * _Nonnull)path
-                                 params:(NSDictionary * _Nullable)immutableParams
-                            cacheOption:(APICacheOption)cacheOption
-                             completion:(APIResponseBlock _Nullable)block
++ (instancetype _Nonnull)make:(NSString * _Nonnull)method
+              requestWithPath:(NSString * _Nonnull)path
+                   parameters:(NSDictionary * _Nullable)parameters
+                  cacheOption:(APICacheOption)cacheOption
+                   completion:(APIResponseBlock _Nullable)block;
 {
-    return [self make:method requestWithPath:path baseURL:nil params:immutableParams extraHeaders:nil suppressErrorAlert:NO uploadBlock:nil downloadBlock:nil cacheOption:cacheOption completion:block];
+    return [self make:method requestWithPath:path baseURL:nil parameters:parameters extraHeaders:nil suppressErrorAlert:NO uploadBlock:nil downloadBlock:nil cacheOption:cacheOption completion:block];
 }
 
 - (NSURLSessionDataTask *)makeRequest
@@ -390,23 +382,24 @@ NSString * const APIMethodDELETE  = @"DELETE";
     BOOL hasCache = NO;
     
     if (self.cacheOption == APICacheOptionBoth || self.cacheOption == APICacheOptionCacheOnly) { // if one of the options includes cache
-        hasCache = [API returnCacheIfExistsForFileName:self.cacheFileName completion:self.completionBlock]; // this methods returns a boolean indicating if the file exists in cache and calls the block with the cached content if it exists
+        hasCache = [APICacheManager.sharedManager callBlock:self.completionBlock ifCacheExistsForFileName:self.cacheFileName]; // this methods returns a boolean indicating if the file exists in cache and calls the block with the cached content if it exists
     }
     
     if (self.cacheOption == APICacheOptionBoth || self.cacheOption == APICacheOptionNetworkOnly || !hasCache) { // if one of the options including the request or if file not in cache, let's make the request
         
         NSMutableDictionary *parameters = self.parameters.mutableCopy;
         
-        if (!self.baseURL) {
-            self.baseURL = [NSURL URLWithString:APIBaseURL];
-        }
-        
         AFHTTPSessionManager *manager = [API sharedSessionManager];
         manager.baseURL = self.baseURL;
         manager.requestSerializer = [AFJSONRequestSerializer serializer];
         manager.responseSerializer.acceptableContentTypes = [manager.responseSerializer.acceptableContentTypes setByAddingObject:@"text/html"];
         
-        // authentication headers here
+        for (NSString *headerName in self.authenticationHeaders) {
+            NSString *headerValue = [NSUserDefaults.standardUserDefaults objectForKey:APIAuthenticationHeadersDefaultsKey][headerName];
+            if (headerValue) {
+                [manager.requestSerializer setValue:headerValue forHTTPHeaderField:headerName];
+            }
+        }
         
         if (self.extraHeaders) {
             for (NSString *key in self.extraHeaders.allKeys) {
