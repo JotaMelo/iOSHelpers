@@ -72,3 +72,8 @@ O sistema de cache foi totalmente reestruturado e ganhou sua própria classe: ``
 Agora gera um hash a partir dos valores do método, path e parametros em vez de uma string apenas concatenando esses valores. 
 
 Foi adicionado um cache em memória. Tem um tamanho máximo, 1MB por padrão mas configurável pela propriedade ```inMemoryCacheMaxSize```. Na inicialização, carrega todos os arquivos para o cache em memória ATÉ o tamanho máximo. Caso o limite do cache seja atingido ao longo do uso do app, é feita uma otimização: os itens do cache em memória são ordenados pelo mais acessado (essa contagem é feita internamente) e a partir do mais acessado vai mantendo o máximo de itens possíveis até atingir o limite.
+
+
+### **multipart/form-data** ###
+
+Agora é adicionada a extensão do arquivo no "nome do arquivo", se conseguir ser identificada.
