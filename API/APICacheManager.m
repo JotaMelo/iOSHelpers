@@ -190,7 +190,7 @@ static NSUInteger const kInMemoryCacheDefaultMaxSize = 1000000; // in bytes, 1MB
 
 - (NSURL *)URLForFileName:(NSString *)fileName
 {
-    NSURL *documentsDirectory = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].lastObject;
+    NSURL *documentsDirectory = [NSFileManager.defaultManager URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].lastObject;
     NSURL *fileURL = [documentsDirectory URLByAppendingPathComponent:fileName];
     return fileURL;
 }
