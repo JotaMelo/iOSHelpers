@@ -352,7 +352,7 @@ NSString * const APIMethodDELETE  = @"DELETE";
                   cacheOption:(APICacheOption)cacheOption
                    completion:(APIResponseBlock _Nullable)block;
 {
-    API *request = [API new];
+    API *request = [self new];
     request.method = method;
     request.path = path;
     request.baseURL = baseURL;
